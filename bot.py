@@ -2,41 +2,43 @@ import telebot
 from PIL import Image
 import io
 from telebot import types
+from TOKEN import TOKEN
 
-TOKEN = '<token goes here>'
 bot = telebot.TeleBot(TOKEN)
 
-user_states = {}  # тут будем хранить информацию о действиях пользователя
+# Словарь для хранения информации о текущих действиях пользователей
+user_states = {}
 
-# набор символов из которых составляем изображение
+# Набор символов, из которых составляется изображение в ASCII-арт
 ASCII_CHARS = '@%#*+=-:. '
 
-
+# Функция изменения размера изображения
 def resize_image(image, new_width=100):
     width, height = image.size
     ratio = height / width
     new_height = int(new_width * ratio)
     return image.resize((new_width, new_height))
 
-
+# Функция преобразования изображения в оттенки серого
 def grayify(image):
     return image.convert("L")
 
-
-def image_to_ascii(image_stream, new_width=40):
-    # Переводим в оттенки серого
+# Функция преобразования изображения в ASCII-арт
+def image_to_ascii(image_stream, ascii_chars,new_width=40):
+    # Переводим изображение в оттенки серого
     image = Image.open(image_stream).convert('L')
 
-    # меняем размер сохраняя отношение сторон
+    # Меняем размер изображения, сохраняя пропорции
     width, height = image.size
     aspect_ratio = height / float(width)
     new_height = int(
         aspect_ratio * new_width * 0.55)  # 0,55 так как буквы выше чем шире
     img_resized = image.resize((new_width, new_height))
 
-    img_str = pixels_to_ascii(img_resized)
+    img_str = pixels_to_ascii(img_resized, ascii_chars)
     img_width = img_resized.width
 
+    # Ограничиваем максимальное количество символов в сообщении
     max_characters = 4000 - (new_width + 1)
     max_rows = max_characters // (new_width + 1)
 
@@ -46,16 +48,16 @@ def image_to_ascii(image_stream, new_width=40):
 
     return ascii_art
 
-
-def pixels_to_ascii(image):
+# Функция преобразования пикселей изображения в ASCII-символы
+def pixels_to_ascii(image, ascii_chars):
     pixels = image.getdata()
     characters = ""
     for pixel in pixels:
-        characters += ASCII_CHARS[pixel * len(ASCII_CHARS) // 256]
+        characters += ascii_chars[pixel * len(ascii_chars) // 256]
     return characters
 
 
-# Огрубляем изображение
+# Функция пикселизации изображения
 def pixelate_image(image, pixel_size):
     image = image.resize(
         (image.size[0] // pixel_size, image.size[1] // pixel_size),
@@ -73,18 +75,24 @@ def send_welcome(message):
     bot.reply_to(message, "Send me an image, and I'll provide options for you!")
 
 
-@bot.message_handler(content_types=['photo'])
-def handle_photo(message):
-    bot.reply_to(message, "I got your photo! Please choose what you'd like to do with it.",
-                 reply_markup=get_options_keyboard())
-    user_states[message.chat.id] = {'photo': message.photo[-1].file_id}
+@bot.message_handler(content_types=['photo', 'text'])
+def handle_photo_or_text(message):
+    if message.content_type == 'photo':
+        bot.reply_to(message, "I got your photo! Please choose what you'd like to do with it.",
+                     reply_markup=get_options_keyboard())
+        user_states[message.chat.id] = {'photo': message.photo[-1].file_id}
+    elif message.content_type == 'text' and 'custom_ascii' in user_states[message.chat.id]:
+        user_states[message.chat.id]['custom_ascii_chars'] = message.text
+        bot.reply_to(message, "Got your custom ASCII characters! Now, I'll convert your image to ASCII art.")
+        ascii_and_send(message)
 
 
 def get_options_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     pixelate_btn = types.InlineKeyboardButton("Pixelate", callback_data="pixelate")
     ascii_btn = types.InlineKeyboardButton("ASCII Art", callback_data="ascii")
-    keyboard.add(pixelate_btn, ascii_btn)
+    custom_ascii_btn = types.InlineKeyboardButton("Custom ASCII Art", callback_data="custom_ascii")
+    keyboard.add(pixelate_btn, ascii_btn, custom_ascii_btn)
     return keyboard
 
 
@@ -96,6 +104,9 @@ def callback_query(call):
     elif call.data == "ascii":
         bot.answer_callback_query(call.id, "Converting your image to ASCII art...")
         ascii_and_send(call.message)
+    elif call.data == "custom_ascii":
+        bot.answer_callback_query(call.id, "Please send your custom ASCII characters.")
+        user_states[call.message.chat.id]['custom_ascii'] = True
 
 
 def pixelate_and_send(message):
@@ -119,7 +130,10 @@ def ascii_and_send(message):
     downloaded_file = bot.download_file(file_info.file_path)
 
     image_stream = io.BytesIO(downloaded_file)
-    ascii_art = image_to_ascii(image_stream)
+    ascii_chars = ASCII_CHARS
+    if 'custom_ascii_chars' in user_states[message.chat.id]:
+        ascii_chars = user_states[message.chat.id]['custom_ascii_chars']
+    ascii_art = image_to_ascii(image_stream, ascii_chars)
     bot.send_message(message.chat.id, f"```\n{ascii_art}\n```", parse_mode="MarkdownV2")
 
 
