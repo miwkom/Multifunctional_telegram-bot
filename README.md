@@ -37,7 +37,7 @@
 2.  **Клонируйте репозиторий:**
 
     ```bash
-    git clone (https://github.com/miwkom/Multifunctional_telegram-bot)
+    git clone https://github.com/miwkom/Multifunctional_telegram-bot
     cd <папка_с_проектом>
     ```
 3.  **Установите зависимости:**
