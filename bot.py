@@ -1,5 +1,5 @@
 import telebot
-from PIL import Image
+from PIL import Image, ImageOps
 import io
 from telebot import types
 from TOKEN import TOKEN
@@ -69,6 +69,11 @@ def pixelate_image(image, pixel_size):
     )
     return image
 
+# Функция инверсии цветов изображения
+def invert_color(image):
+    inverted_image = ImageOps.invert(image)
+    return inverted_image
+
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
@@ -92,7 +97,8 @@ def get_options_keyboard():
     pixelate_btn = types.InlineKeyboardButton("Pixelate", callback_data="pixelate")
     ascii_btn = types.InlineKeyboardButton("ASCII Art", callback_data="ascii")
     custom_ascii_btn = types.InlineKeyboardButton("Custom ASCII Art", callback_data="custom_ascii")
-    keyboard.add(pixelate_btn, ascii_btn, custom_ascii_btn)
+    invert_color_btn = types.InlineKeyboardButton("Invert Color", callback_data="invert_color")
+    keyboard.add(pixelate_btn, ascii_btn, custom_ascii_btn, invert_color_btn)
     return keyboard
 
 
@@ -107,6 +113,9 @@ def callback_query(call):
     elif call.data == "custom_ascii":
         bot.answer_callback_query(call.id, "Please send your custom ASCII characters.")
         user_states[call.message.chat.id]['custom_ascii'] = True
+    elif call.data == "invert_color":
+        bot.answer_callback_query(call.id, "Inverting your image color...")
+        invert_color_and_send(call.message)
 
 
 def pixelate_and_send(message):
@@ -135,6 +144,20 @@ def ascii_and_send(message):
         ascii_chars = user_states[message.chat.id]['custom_ascii_chars']
     ascii_art = image_to_ascii(image_stream, ascii_chars)
     bot.send_message(message.chat.id, f"```\n{ascii_art}\n```", parse_mode="MarkdownV2")
+
+def invert_color_and_send(message):
+    photo_id = user_states[message.chat.id]['photo']
+    file_info = bot.get_file(photo_id)
+    downloaded_file = bot.download_file(file_info.file_path)
+
+    image_stream = io.BytesIO(downloaded_file)
+    image = Image.open(image_stream)
+    inverted = invert_color(image)
+
+    output_stream = io.BytesIO()
+    inverted.save(output_stream, format="JPEG")
+    output_stream.seek(0)
+    bot.send_photo(message.chat.id, output_stream)
 
 
 bot.polling(none_stop=True)
