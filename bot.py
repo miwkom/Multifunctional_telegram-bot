@@ -98,9 +98,16 @@ def get_options_keyboard():
     ascii_btn = types.InlineKeyboardButton("ASCII Art", callback_data="ascii")
     custom_ascii_btn = types.InlineKeyboardButton("Custom ASCII Art", callback_data="custom_ascii")
     invert_color_btn = types.InlineKeyboardButton("Invert Color", callback_data="invert_color")
-    keyboard.add(pixelate_btn, ascii_btn, custom_ascii_btn, invert_color_btn)
+    mirror_btn = types.InlineKeyboardButton("Mirror", callback_data="mirror")
+    keyboard.add(pixelate_btn, ascii_btn, custom_ascii_btn, invert_color_btn, mirror_btn)
     return keyboard
 
+def mirror_options_keyboard():
+    keyboard = types.InlineKeyboardMarkup()
+    mirror_horizontal_btn = types.InlineKeyboardButton("Mirror Horizontally", callback_data="mirror_horizontal")
+    mirror_vertical_btn = types.InlineKeyboardButton("Mirror Vertically", callback_data="mirror_vertical")
+    keyboard.add(mirror_horizontal_btn, mirror_vertical_btn)
+    return keyboard
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
@@ -116,6 +123,18 @@ def callback_query(call):
     elif call.data == "invert_color":
         bot.answer_callback_query(call.id, "Inverting your image color...")
         invert_color_and_send(call.message)
+    elif call.data == "mirror":
+        bot.answer_callback_query(call.id, "Select mirror option.")
+        bot.send_message(call.message.chat.id, "Choose how to mirror your image:",
+                         reply_markup=mirror_options_keyboard())
+    elif call.data == "mirror_horizontal":
+        bot.answer_callback_query(call.id, "Mirroring your image horizontally...")
+        user_states[call.message.chat.id]['mirror_horizontal'] = True
+        mirror_and_send(call.message)
+    elif call.data == "mirror_vertical":
+        bot.answer_callback_query(call.id, "Mirroring your image vertically...")
+        user_states[call.message.chat.id]['mirror_vertical'] = True
+        mirror_and_send(call.message)
 
 
 def pixelate_and_send(message):
@@ -142,6 +161,7 @@ def ascii_and_send(message):
     ascii_chars = ASCII_CHARS
     if 'custom_ascii_chars' in user_states[message.chat.id]:
         ascii_chars = user_states[message.chat.id]['custom_ascii_chars']
+        user_states[message.chat.id].pop('custom_ascii_chars')
     ascii_art = image_to_ascii(image_stream, ascii_chars)
     bot.send_message(message.chat.id, f"```\n{ascii_art}\n```", parse_mode="MarkdownV2")
 
@@ -156,6 +176,26 @@ def invert_color_and_send(message):
 
     output_stream = io.BytesIO()
     inverted.save(output_stream, format="JPEG")
+    output_stream.seek(0)
+    bot.send_photo(message.chat.id, output_stream)
+
+def mirror_and_send(message):
+    photo_id = user_states[message.chat.id]['photo']
+    file_info = bot.get_file(photo_id)
+    downloaded_file = bot.download_file(file_info.file_path)
+
+    image_stream = io.BytesIO(downloaded_file)
+    image = Image.open(image_stream)
+
+    if 'mirror_horizontal' in user_states[message.chat.id]:
+        mirrored = image.transpose(Image.FLIP_LEFT_RIGHT)
+        user_states[message.chat.id].pop('mirror_horizontal')
+    elif 'mirror_vertical' in user_states[message.chat.id]:
+        mirrored = image.transpose(Image.FLIP_TOP_BOTTOM)
+        user_states[message.chat.id].pop('mirror_vertical')
+
+    output_stream = io.BytesIO()
+    mirrored.save(output_stream, format="JPEG")
     output_stream.seek(0)
     bot.send_photo(message.chat.id, output_stream)
 
