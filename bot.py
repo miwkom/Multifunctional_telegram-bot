@@ -74,6 +74,10 @@ def invert_color(image):
     inverted_image = ImageOps.invert(image)
     return inverted_image
 
+def convert_to_heatmap(image):
+    gray_image = grayify(image)
+    heatmap = ImageOps.colorize(gray_image, "blue", "red")
+    return heatmap
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
@@ -99,7 +103,8 @@ def get_options_keyboard():
     custom_ascii_btn = types.InlineKeyboardButton("Custom ASCII Art", callback_data="custom_ascii")
     invert_color_btn = types.InlineKeyboardButton("Invert Color", callback_data="invert_color")
     mirror_btn = types.InlineKeyboardButton("Mirror", callback_data="mirror")
-    keyboard.add(pixelate_btn, ascii_btn, custom_ascii_btn, invert_color_btn, mirror_btn)
+    heatmap_btn = types.InlineKeyboardButton("Heat", callback_data="heatmap")
+    keyboard.add(pixelate_btn, ascii_btn, custom_ascii_btn, invert_color_btn, mirror_btn, heatmap_btn)
     return keyboard
 
 def mirror_options_keyboard():
@@ -135,7 +140,9 @@ def callback_query(call):
         bot.answer_callback_query(call.id, "Mirroring your image vertically...")
         user_states[call.message.chat.id]['mirror_vertical'] = True
         mirror_and_send(call.message)
-
+    elif call.data == "heatmap":
+        bot.answer_callback_query(call.id, "Converting your image to heatmap...")
+        heatmap_and_send(call.message)
 
 def pixelate_and_send(message):
     photo_id = user_states[message.chat.id]['photo']
@@ -144,6 +151,7 @@ def pixelate_and_send(message):
 
     image_stream = io.BytesIO(downloaded_file)
     image = Image.open(image_stream)
+
     pixelated = pixelate_image(image, 20)
 
     output_stream = io.BytesIO()
@@ -158,11 +166,13 @@ def ascii_and_send(message):
     downloaded_file = bot.download_file(file_info.file_path)
 
     image_stream = io.BytesIO(downloaded_file)
+
     ascii_chars = ASCII_CHARS
     if 'custom_ascii_chars' in user_states[message.chat.id]:
         ascii_chars = user_states[message.chat.id]['custom_ascii_chars']
         user_states[message.chat.id].pop('custom_ascii_chars')
     ascii_art = image_to_ascii(image_stream, ascii_chars)
+
     bot.send_message(message.chat.id, f"```\n{ascii_art}\n```", parse_mode="MarkdownV2")
 
 def invert_color_and_send(message):
@@ -172,6 +182,7 @@ def invert_color_and_send(message):
 
     image_stream = io.BytesIO(downloaded_file)
     image = Image.open(image_stream)
+
     inverted = invert_color(image)
 
     output_stream = io.BytesIO()
@@ -196,6 +207,21 @@ def mirror_and_send(message):
 
     output_stream = io.BytesIO()
     mirrored.save(output_stream, format="JPEG")
+    output_stream.seek(0)
+    bot.send_photo(message.chat.id, output_stream)
+
+def heatmap_and_send(message):
+    photo_id = user_states[message.chat.id]['photo']
+    file_info = bot.get_file(photo_id)
+    downloaded_file = bot.download_file(file_info.file_path)
+
+    image_stream = io.BytesIO(downloaded_file)
+    image = Image.open(image_stream)
+
+    heatmap = convert_to_heatmap(image)
+
+    output_stream = io.BytesIO()
+    heatmap.save(output_stream, format="JPEG")
     output_stream.seek(0)
     bot.send_photo(message.chat.id, output_stream)
 
