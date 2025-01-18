@@ -74,10 +74,17 @@ def invert_color(image):
     inverted_image = ImageOps.invert(image)
     return inverted_image
 
+# Функция преобразования картинки в тепловую карту
 def convert_to_heatmap(image):
     gray_image = grayify(image)
     heatmap = ImageOps.colorize(gray_image, "blue", "red")
     return heatmap
+
+# Функция для уменьшения размера изображения, сохраняя пропорции
+def resize_for_sticker(image, max_size=512):
+    image.thumbnail((max_size, max_size))
+    return image
+
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
@@ -95,7 +102,6 @@ def handle_photo_or_text(message):
         bot.reply_to(message, "Got your custom ASCII characters! Now, I'll convert your image to ASCII art.")
         ascii_and_send(message)
 
-
 def get_options_keyboard():
     keyboard = types.InlineKeyboardMarkup()
     pixelate_btn = types.InlineKeyboardButton("Pixelate", callback_data="pixelate")
@@ -104,7 +110,8 @@ def get_options_keyboard():
     invert_color_btn = types.InlineKeyboardButton("Invert Color", callback_data="invert_color")
     mirror_btn = types.InlineKeyboardButton("Mirror", callback_data="mirror")
     heatmap_btn = types.InlineKeyboardButton("Heat", callback_data="heatmap")
-    keyboard.add(pixelate_btn, ascii_btn, custom_ascii_btn, invert_color_btn, mirror_btn, heatmap_btn)
+    resize_btn = types.InlineKeyboardButton("Resize for sticker", callback_data="resize")
+    keyboard.add(pixelate_btn, ascii_btn, custom_ascii_btn, invert_color_btn, mirror_btn, heatmap_btn, resize_btn)
     return keyboard
 
 def mirror_options_keyboard():
@@ -143,6 +150,10 @@ def callback_query(call):
     elif call.data == "heatmap":
         bot.answer_callback_query(call.id, "Converting your image to heatmap...")
         heatmap_and_send(call.message)
+    elif call.data == "resize":
+        bot.answer_callback_query(call.id, "Resizing your image for sticker...")
+        resize_and_send(call.message)
+
 
 def pixelate_and_send(message):
     photo_id = user_states[message.chat.id]['photo']
@@ -158,7 +169,6 @@ def pixelate_and_send(message):
     pixelated.save(output_stream, format="JPEG")
     output_stream.seek(0)
     bot.send_photo(message.chat.id, output_stream)
-
 
 def ascii_and_send(message):
     photo_id = user_states[message.chat.id]['photo']
@@ -222,6 +232,21 @@ def heatmap_and_send(message):
 
     output_stream = io.BytesIO()
     heatmap.save(output_stream, format="JPEG")
+    output_stream.seek(0)
+    bot.send_photo(message.chat.id, output_stream)
+
+def resize_and_send(message):
+    photo_id = user_states[message.chat.id]['photo']
+    file_info = bot.get_file(photo_id)
+    downloaded_file = bot.download_file(file_info.file_path)
+
+    image_stream = io.BytesIO(downloaded_file)
+    image = Image.open(image_stream)
+
+    resized_image = resize_for_sticker(image)
+
+    output_stream = io.BytesIO()
+    resized_image.save(output_stream, format="JPEG")
     output_stream.seek(0)
     bot.send_photo(message.chat.id, output_stream)
 
