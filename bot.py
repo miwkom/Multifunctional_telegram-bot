@@ -1,3 +1,4 @@
+import random
 import telebot
 from PIL import Image, ImageOps
 import io
@@ -8,6 +9,14 @@ bot = telebot.TeleBot(TOKEN)
 
 # Словарь для хранения информации о текущих действиях пользователей
 user_states = {}
+
+# разделяет шутки из txt файла
+jokes = []
+with open('jokes_list.txt', 'r', encoding='utf-8') as file:
+    for line in file:
+        line = line.strip()
+        fields = line.split('\n')
+        jokes.append(fields)
 
 # Набор символов, из которых составляется изображение в ASCII-арт
 ASCII_CHARS = '@%#*+=-:. '
@@ -85,73 +94,82 @@ def resize_for_sticker(image, max_size=512):
     image.thumbnail((max_size, max_size))
     return image
 
+# Функция случайной шутки
+def random_joke():
+    random_joke = random.choice(jokes)
+    return random_joke
 
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
-    bot.reply_to(message, "Send me an image, and I'll provide options for you!")
+    bot.reply_to(message, "Пришлите мне изображение, и я предложу вам варианты!"
+                          "\nТак же мы можете написать /joke и получить случайную шутку.")
 
+@bot.message_handler(commands=['joke'])
+def send_joke(message):
+    bot.send_message(message.chat.id, random_joke())
 
 @bot.message_handler(content_types=['photo', 'text'])
 def handle_photo_or_text(message):
     if message.content_type == 'photo':
-        bot.reply_to(message, "I got your photo! Please choose what you'd like to do with it.",
+        bot.reply_to(message, "У меня есть твое фото! Пожалуйста, выберите, что вы хотите с ним сделать.",
                      reply_markup=get_options_keyboard())
         user_states[message.chat.id] = {'photo': message.photo[-1].file_id}
     elif message.content_type == 'text' and 'custom_ascii' in user_states[message.chat.id]:
         user_states[message.chat.id]['custom_ascii_chars'] = message.text
-        bot.reply_to(message, "Got your custom ASCII characters! Now, I'll convert your image to ASCII art.")
+        bot.reply_to(message, "Получили свои собственные символы ASCII! "
+                              "Теперь я конвертирую ваше изображение в формат ASCII.")
         ascii_and_send(message)
 
 def get_options_keyboard():
     keyboard = types.InlineKeyboardMarkup()
-    pixelate_btn = types.InlineKeyboardButton("Pixelate", callback_data="pixelate")
+    pixelate_btn = types.InlineKeyboardButton("Пикселизация", callback_data="pixelate")
     ascii_btn = types.InlineKeyboardButton("ASCII Art", callback_data="ascii")
-    custom_ascii_btn = types.InlineKeyboardButton("Custom ASCII Art", callback_data="custom_ascii")
-    invert_color_btn = types.InlineKeyboardButton("Invert Color", callback_data="invert_color")
-    mirror_btn = types.InlineKeyboardButton("Mirror", callback_data="mirror")
-    heatmap_btn = types.InlineKeyboardButton("Heat", callback_data="heatmap")
-    resize_btn = types.InlineKeyboardButton("Resize for sticker", callback_data="resize")
+    custom_ascii_btn = types.InlineKeyboardButton("Пользовательский ASCII Art", callback_data="custom_ascii")
+    invert_color_btn = types.InlineKeyboardButton("Инвертировать цвет", callback_data="invert_color")
+    mirror_btn = types.InlineKeyboardButton("Зеркало", callback_data="mirror")
+    heatmap_btn = types.InlineKeyboardButton("Тепловая карта", callback_data="heatmap")
+    resize_btn = types.InlineKeyboardButton("Измените размер для стикера", callback_data="resize")
     keyboard.add(pixelate_btn, ascii_btn, custom_ascii_btn, invert_color_btn, mirror_btn, heatmap_btn, resize_btn)
     return keyboard
 
 def mirror_options_keyboard():
     keyboard = types.InlineKeyboardMarkup()
-    mirror_horizontal_btn = types.InlineKeyboardButton("Mirror Horizontally", callback_data="mirror_horizontal")
-    mirror_vertical_btn = types.InlineKeyboardButton("Mirror Vertically", callback_data="mirror_vertical")
+    mirror_horizontal_btn = types.InlineKeyboardButton("Горизонтально", callback_data="mirror_horizontal")
+    mirror_vertical_btn = types.InlineKeyboardButton("Вертикально", callback_data="mirror_vertical")
     keyboard.add(mirror_horizontal_btn, mirror_vertical_btn)
     return keyboard
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     if call.data == "pixelate":
-        bot.answer_callback_query(call.id, "Pixelating your image...")
+        bot.answer_callback_query(call.id, "Пикселизация вашего изображения...")
         pixelate_and_send(call.message)
     elif call.data == "ascii":
-        bot.answer_callback_query(call.id, "Converting your image to ASCII art...")
+        bot.answer_callback_query(call.id, "Преобразование вашего изображения в формат ASCII art...")
         ascii_and_send(call.message)
     elif call.data == "custom_ascii":
-        bot.answer_callback_query(call.id, "Please send your custom ASCII characters.")
+        bot.answer_callback_query(call.id, "Пожалуйста, присылайте свои собственные символы ASCII.")
         user_states[call.message.chat.id]['custom_ascii'] = True
     elif call.data == "invert_color":
-        bot.answer_callback_query(call.id, "Inverting your image color...")
+        bot.answer_callback_query(call.id, "Изменение цвета вашего изображения...")
         invert_color_and_send(call.message)
     elif call.data == "mirror":
-        bot.answer_callback_query(call.id, "Select mirror option.")
-        bot.send_message(call.message.chat.id, "Choose how to mirror your image:",
+        bot.answer_callback_query(call.id, "Выберите опцию зеркального отображения.")
+        bot.send_message(call.message.chat.id, "Выберите, как отразить ваше изображение в зеркале:",
                          reply_markup=mirror_options_keyboard())
     elif call.data == "mirror_horizontal":
-        bot.answer_callback_query(call.id, "Mirroring your image horizontally...")
+        bot.answer_callback_query(call.id, "Зеркальное отображение вашего изображения по горизонтали...")
         user_states[call.message.chat.id]['mirror_horizontal'] = True
         mirror_and_send(call.message)
     elif call.data == "mirror_vertical":
-        bot.answer_callback_query(call.id, "Mirroring your image vertically...")
+        bot.answer_callback_query(call.id, "Зеркальное отображение вашего изображения по вертикали...")
         user_states[call.message.chat.id]['mirror_vertical'] = True
         mirror_and_send(call.message)
     elif call.data == "heatmap":
-        bot.answer_callback_query(call.id, "Converting your image to heatmap...")
+        bot.answer_callback_query(call.id, "Преобразование вашего изображения в тепловую карту...")
         heatmap_and_send(call.message)
     elif call.data == "resize":
-        bot.answer_callback_query(call.id, "Resizing your image for sticker...")
+        bot.answer_callback_query(call.id, "Изменение размера вашего изображения для наклейки...")
         resize_and_send(call.message)
 
 
@@ -249,6 +267,5 @@ def resize_and_send(message):
     resized_image.save(output_stream, format="JPEG")
     output_stream.seek(0)
     bot.send_photo(message.chat.id, output_stream)
-
 
 bot.polling(none_stop=True)
