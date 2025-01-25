@@ -14,9 +14,13 @@ user_states = {}
 jokes = []
 with open('jokes_list.txt', 'r', encoding='utf-8') as file:
     for line in file:
-        line = line.strip()
-        fields = line.split('\n')
-        jokes.append(fields)
+        jokes.append(line.strip())
+
+# разделяет комплимент из txt файла
+compliments = []
+with open('compliments_list.txt', 'r', encoding='utf-8') as file:
+    for line in file:
+        compliments.append(line.strip())
 
 # Набор символов, из которых составляется изображение в ASCII-арт
 ASCII_CHARS = '@%#*+=-:. '
@@ -99,14 +103,24 @@ def random_joke():
     random_joke = random.choice(jokes)
     return random_joke
 
+# Функция случайного комплимента
+def random_compliment():
+    random_compliment = random.choice(compliments)
+    return random_compliment
+
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     bot.reply_to(message, "Пришлите мне изображение, и я предложу вам варианты!"
-                          "\nТак же мы можете написать /joke и получить случайную шутку.")
+                          "\nТак же мы можете написать /joke и получить случайную шутку,"
+                          "или /compliment для случайного комплимента")
 
 @bot.message_handler(commands=['joke'])
 def send_joke(message):
     bot.send_message(message.chat.id, random_joke())
+
+@bot.message_handler(commands=['compliment'])
+def send_compliment(message):
+    bot.send_message(message.chat.id, random_compliment())
 
 @bot.message_handler(content_types=['photo', 'text'])
 def handle_photo_or_text(message):
