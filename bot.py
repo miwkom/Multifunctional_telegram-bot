@@ -108,11 +108,16 @@ def random_compliment():
     random_compliment = random.choice(compliments)
     return random_compliment
 
+# Подброс монетки
+def flip_a_coin():
+    return 'Орел!' if random.randint(0, 1) else 'Решка!'
+
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     bot.reply_to(message, "Пришлите мне изображение, и я предложу вам варианты!"
                           "\nТак же мы можете написать /joke и получить случайную шутку,"
-                          "или /compliment для случайного комплимента")
+                          "или /compliment для случайного комплимента."
+                          "\n /coin для розыгрыша монетки!")
 
 @bot.message_handler(commands=['joke'])
 def send_joke(message):
@@ -121,6 +126,10 @@ def send_joke(message):
 @bot.message_handler(commands=['compliment'])
 def send_compliment(message):
     bot.send_message(message.chat.id, random_compliment())
+
+@bot.message_handler(commands=['coin'])
+def send_coin(message):
+    bot.send_message(message.chat.id, flip_a_coin())
 
 @bot.message_handler(content_types=['photo', 'text'])
 def handle_photo_or_text(message):
